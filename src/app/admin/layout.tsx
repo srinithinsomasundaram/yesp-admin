@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  BookOpen,
 } from "lucide-react";
 import { getMe, logout, clearTokens, setTokens, getAccessToken, ApiError, type Me } from "@/lib/api";
 import { isAuthenticated } from "@/lib/session";
@@ -28,6 +29,7 @@ const ADMIN_NAV = [
   { href: "/admin/apps", label: "Applications", icon: AppWindow },
   { href: "/admin/audit", label: "Audit Log", icon: FileText },
   { href: "/admin/security", label: "Security", icon: ShieldAlert },
+  { href: "/admin/setup-guide", label: "Setup Guide", icon: BookOpen },
 ];
 
 function isActive(href: string, path: string, exact?: boolean) {
