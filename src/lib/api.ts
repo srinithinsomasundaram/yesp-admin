@@ -164,7 +164,15 @@ export async function verifyEmail(token: string) {
 }
 
 export async function logout() {
-  await request("/auth/logout", { method: "POST" }).catch(() => {});
+  const body = _rt ? JSON.stringify({ refreshToken: _rt }) : undefined;
+  await fetch("/api/v1/auth/logout", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(_at ? { Authorization: `Bearer ${_at}` } : {}),
+    },
+    body,
+  }).catch(() => {});
   clearTokens();
 }
 
