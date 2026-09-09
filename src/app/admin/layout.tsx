@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { clsx } from "clsx";
 import {
@@ -15,7 +15,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { getMe, logout, clearTokens, setTokens, getAccessToken, type Me } from "@/lib/api";
+import { getMe, logout, clearTokens, setTokens, getAccessToken, ApiError, type Me } from "@/lib/api";
 import { isAuthenticated } from "@/lib/session";
 
 const AUTH_URL = (process.env.NEXT_PUBLIC_AUTH_URL ?? "https://auth.yesp.space").replace(/\/$/, "");
@@ -35,50 +35,100 @@ function isActive(href: string, path: string, exact?: boolean) {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [initError, setInitError] = useState(false);
 
-  useEffect(() => {
-    const toLogin = () => {
-      clearTokens();
-      window.location.href = `${AUTH_URL}/auth/login?next=${encodeURIComponent(ADMIN_URL + "/admin")}`;
-    };
+  const toLogin = useCallback(() => {
+    clearTokens();
+    window.location.href = `${AUTH_URL}/auth/login?next=${encodeURIComponent(ADMIN_URL + "/admin")}`;
+  }, []);
 
-    const init = async () => {
-      if (!isAuthenticated()) {
-        try {
-          const res = await fetch("/api/v1/auth/token/refresh", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!res.ok) { toLogin(); return; }
-          const data = await res.json() as { accessToken: string };
-          setTokens(data.accessToken, "");
-        } catch {
-          toLogin();
-          return;
+  const init = useCallback(async () => {
+    setInitError(false);
+    setMe(null);
+    setForbidden(false);
+
+    if (!isAuthenticated()) {
+      try {
+        const res = await fetch("/api/v1/auth/token/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!res.ok) {
+          if (res.status === 401) { toLogin(); return; }
+          setInitError(true); return;
         }
+        const data = await res.json() as { accessToken: string };
+        setTokens(data.accessToken, "");
+      } catch {
+        setInitError(true); return;
       }
-      getMe().then(setMe).catch(toLogin);
-    };
+    }
 
-    init();
-  }, [router]);
+    let user;
+    try {
+      user = await getMe();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        toLogin();
+      } else {
+        setInitError(true);
+      }
+      return;
+    }
 
-  // Verify admin access via the stats endpoint (returns 403 if not admin)
+    // Verify admin access before setting `me` (so no admin UI flashes for non-admins)
+    try {
+      const adminCheck = await fetch("/api/v1/admin/stats", {
+        headers: { Authorization: `Bearer ${getAccessToken()}` },
+      });
+      if (adminCheck.status === 403) {
+        setForbidden(true);
+        setMe(user);
+        return;
+      }
+      if (!adminCheck.ok) {
+        setInitError(true);
+        return;
+      }
+    } catch {
+      setInitError(true);
+      return;
+    }
+
+    setMe(user);
+  }, [toLogin]);
+
+  // Initial auth check
+  useEffect(() => { init(); }, [init]);
+
+  // Re-check auth on bfcache restore (browser back/forward)
   useEffect(() => {
-    if (!me) return;
-    fetch("/api/v1/admin/stats", {
-      headers: { Authorization: `Bearer ${getAccessToken()}` },
-    })
-      .then((r) => { if (r.status === 403) setForbidden(true); })
-      .catch(() => {});
-  }, [me]);
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) { setInitError(false); init(); }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [init]);
 
   if (!me) {
+    if (initError) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="text-sm font-medium text-slate-700">Unable to connect</p>
+          <p className="text-xs text-slate-400 max-w-xs">Check your internet connection and try again. You will not be logged out.</p>
+          <button
+            onClick={() => init()}
+            className="mt-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Spinner className="w-6 h-6 text-blue-600" />
@@ -169,7 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             onClick={async () => {
               await logout();
               clearTokens();
-              router.replace("/auth/login");
+              window.location.href = `${AUTH_URL}/auth/login?logged_out=1`;
             }}
             className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-red-600 transition-colors"
           >
