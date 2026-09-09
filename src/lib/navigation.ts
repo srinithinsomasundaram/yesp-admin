@@ -1,29 +1,14 @@
 import { getStoredTokens } from "./api";
 
-export const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || "";
+export const AUTH_URL    = process.env.NEXT_PUBLIC_AUTH_URL    || "";
 export const CONSOLE_URL = process.env.NEXT_PUBLIC_CONSOLE_URL || "";
 
-export function getAuthHost(): string {
-  if (!AUTH_URL) return typeof window !== "undefined" ? window.location.hostname : "";
-  try {
-    return new URL(AUTH_URL).hostname;
-  } catch {
-    return "";
-  }
-}
-
-export function getConsoleHost(): string {
-  if (!CONSOLE_URL) return typeof window !== "undefined" ? window.location.hostname : "";
-  try {
-    return new URL(CONSOLE_URL).hostname;
-  } catch {
-    return "";
-  }
-}
+// Canonical fallbacks so navigation works even when env vars are missing
+export const CONSOLE_BASE = CONSOLE_URL || "https://accounts.yesp.space";
 
 /**
  * Navigates to console domain (accounts.yesp.space).
- * If caller is on another origin (e.g. auth.yesp.space), passes tokens via /bridge URL fragment.
+ * Always cross-domain from admin, so passes tokens via /bridge URL fragment.
  */
 export function navigateToConsole(
   targetPath: string = "/console",
@@ -31,25 +16,23 @@ export function navigateToConsole(
 ) {
   if (typeof window === "undefined") return;
 
-  const targetHost = getConsoleHost();
-  const currentHost = window.location.hostname;
-  const isCrossDomain = Boolean(targetHost && currentHost !== targetHost && CONSOLE_URL);
+  try {
+    const isCrossDomain = window.location.origin !== new URL(CONSOLE_BASE).origin;
+    if (isCrossDomain) {
+      const tokens = getStoredTokens();
+      if (tokens && tokens.at) {
+        const frag: Record<string, string> = { at: tokens.at, next: targetPath };
+        if (tokens.rt) frag.rt = tokens.rt;
+        window.location.href = `${CONSOLE_BASE}/bridge#${new URLSearchParams(frag).toString()}`;
+      } else {
+        window.location.href = `${CONSOLE_BASE}${targetPath}`;
+      }
+      return;
+    }
+  } catch { /* URL parse error — fall through to same-domain nav */ }
 
-  if (isCrossDomain) {
-    const tokens = getStoredTokens();
-    if (tokens && tokens.at && tokens.rt) {
-      const frag = new URLSearchParams({ at: tokens.at, rt: tokens.rt, next: targetPath });
-      window.location.href = `${CONSOLE_URL}/bridge#${frag.toString()}`;
-    } else {
-      window.location.href = `${CONSOLE_URL}${targetPath}`;
-    }
-  } else {
-    if (router) {
-      router.push(targetPath);
-    } else {
-      window.location.href = targetPath;
-    }
-  }
+  if (router) router.push(targetPath);
+  else window.location.href = targetPath;
 }
 
 /**

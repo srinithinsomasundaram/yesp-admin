@@ -63,8 +63,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           if (res.status === 401) { toLogin(); return; }
           setInitError(true); return;
         }
-        const data = await res.json() as { accessToken: string };
-        setTokens(data.accessToken, "");
+        const data = await res.json() as { accessToken: string; refreshToken?: string };
+        setTokens(data.accessToken, data.refreshToken ?? "");
       } catch {
         setInitError(true); return;
       }
@@ -148,7 +148,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <p className="text-sm text-slate-500 max-w-xs">
           Your account does not have admin access to Yesp Identity Platform.
         </p>
-        <Link href="/console" className="btn-primary mt-2 w-auto px-6">Go to console</Link>
+        <a href={`${(process.env.NEXT_PUBLIC_CONSOLE_URL || "https://accounts.yesp.space")}/console`} className="btn-primary mt-2 w-auto px-6">Go to console</a>
       </div>
     );
   }
