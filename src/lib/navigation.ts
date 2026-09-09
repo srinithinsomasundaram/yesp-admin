@@ -35,6 +35,8 @@ export function navigateToConsole(
   else window.location.href = targetPath;
 }
 
+const AUTH_BASE = AUTH_URL || "https://auth.yesp.space";
+
 /**
  * Navigates to auth domain (auth.yesp.space).
  */
@@ -44,17 +46,14 @@ export function navigateToAuth(
 ) {
   if (typeof window === "undefined") return;
 
-  const targetHost = getAuthHost();
-  const currentHost = window.location.hostname;
-  const isCrossDomain = Boolean(targetHost && currentHost !== targetHost && AUTH_URL);
-
-  if (isCrossDomain) {
-    window.location.href = `${AUTH_URL}${targetPath}`;
-  } else {
-    if (router) {
-      router.push(targetPath);
-    } else {
-      window.location.href = targetPath;
+  try {
+    const isCrossDomain = window.location.origin !== new URL(AUTH_BASE).origin;
+    if (isCrossDomain) {
+      window.location.href = `${AUTH_BASE}${targetPath}`;
+      return;
     }
-  }
+  } catch { /* fall through */ }
+
+  if (router) router.push(targetPath);
+  else window.location.href = targetPath;
 }
