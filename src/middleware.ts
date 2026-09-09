@@ -46,7 +46,7 @@ export function middleware(request: NextRequest) {
   // PIN gate — all /admin paths require the pin cookie.
   // /admin-pin, /bridge, /api are exempt so the user can reach the PIN page
   // and complete the auth handoff without being redirected.
-  if (pathname.startsWith("/admin")) {
+  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin-pin")) {
     const pin = request.cookies.get("yesp_admin_pin");
     if (pin?.value !== "ok") {
       const pinUrl = new URL("/admin-pin", request.url);
