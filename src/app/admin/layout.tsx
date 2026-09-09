@@ -16,7 +16,7 @@ import {
   X,
   BookOpen,
 } from "lucide-react";
-import { getMe, logout, clearTokens, setTokens, getAccessToken, ApiError, type Me } from "@/lib/api";
+import { getMe, logout, clearTokens, setTokens, ApiError, type Me } from "@/lib/api";
 import { isAuthenticated } from "@/lib/session";
 
 const AUTH_URL = (process.env.NEXT_PUBLIC_AUTH_URL ?? "https://auth.yesp.space").replace(/\/$/, "");
@@ -39,7 +39,6 @@ function isActive(href: string, path: string, exact?: boolean) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null>(null);
-  const [forbidden, setForbidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [initError, setInitError] = useState(false);
 
@@ -51,7 +50,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const init = useCallback(async () => {
     setInitError(false);
     setMe(null);
-    setForbidden(false);
 
     if (!isAuthenticated()) {
       try {
@@ -79,25 +77,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       } else {
         setInitError(true);
       }
-      return;
-    }
-
-    // Verify admin access before setting `me` (so no admin UI flashes for non-admins)
-    try {
-      const adminCheck = await fetch("/api/v1/admin/stats", {
-        headers: { Authorization: `Bearer ${getAccessToken()}` },
-      });
-      if (adminCheck.status === 403) {
-        setForbidden(true);
-        setMe(user);
-        return;
-      }
-      if (!adminCheck.ok) {
-        setInitError(true);
-        return;
-      }
-    } catch {
-      setInitError(true);
       return;
     }
 
@@ -138,22 +117,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (forbidden) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
-        <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center">
-          <ShieldAlert size={24} className="text-red-500" />
-        </div>
-        <h1 className="text-lg font-bold text-slate-900">Access denied</h1>
-        <p className="text-sm text-slate-500 max-w-xs">
-          Your account does not have admin access to Yesp Identity Platform.
-        </p>
-        <a href={`${(process.env.NEXT_PUBLIC_CONSOLE_URL || "https://accounts.yesp.space")}/console`} className="btn-primary mt-2 w-auto px-6">Go to console</a>
-      </div>
-    );
-  }
-
-  const displayName = me.displayName ?? me.email.split("@")[0];
+const displayName = me.displayName ?? me.email.split("@")[0];
   const initial = displayName[0].toUpperCase();
 
   return (
