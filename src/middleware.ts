@@ -34,12 +34,27 @@ export function middleware(request: NextRequest) {
   const allowed =
     pathname === "/" ||
     pathname.startsWith("/admin") ||
+    pathname.startsWith("/admin-pin") ||
     pathname.startsWith("/bridge") ||
     pathname.startsWith("/api");
 
   if (!allowed) {
     const loginUrl = `${AUTH_URL}/auth/login?next=${encodeURIComponent(ADMIN_URL + "/admin")}`;
     return corsHeaders(request, NextResponse.redirect(loginUrl));
+  }
+
+  // PIN gate — all /admin paths require the pin cookie.
+  // /admin-pin, /bridge, /api are exempt so the user can reach the PIN page
+  // and complete the auth handoff without being redirected.
+  if (pathname.startsWith("/admin")) {
+    const pin = request.cookies.get("yesp_admin_pin");
+    if (pin?.value !== "ok") {
+      const pinUrl = new URL("/admin-pin", request.url);
+      // Only allow /admin paths as the next destination to prevent open redirect
+      const dest = pathname.startsWith("/admin") ? pathname : "/admin";
+      pinUrl.searchParams.set("next", dest);
+      return corsHeaders(request, NextResponse.redirect(pinUrl));
+    }
   }
 
   return corsHeaders(request, NextResponse.next());
