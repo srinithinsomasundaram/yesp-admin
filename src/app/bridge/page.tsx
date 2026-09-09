@@ -19,10 +19,11 @@ export default function BridgePage() {
     const hash = window.location.hash.slice(1);
     const params = new URLSearchParams(hash);
     const at = params.get("at");
+    const rt = params.get("rt") ?? "";
     const next = params.get("next") ?? "/admin";
 
     if (at) {
-      setTokens(at, "");
+      setTokens(at, rt);
       history.replaceState(null, "", "/bridge");
       router.replace(next);
       return;
@@ -40,8 +41,8 @@ export default function BridgePage() {
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("refresh_failed");
-        const data = await res.json() as { accessToken: string };
-        setTokens(data.accessToken, "");
+        const data = await res.json() as { accessToken: string; refreshToken?: string };
+        setTokens(data.accessToken, data.refreshToken ?? "");
         router.replace(next);
       })
       .catch(() => {

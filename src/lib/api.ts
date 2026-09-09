@@ -41,16 +41,16 @@ export function clearMfaPendingUser() { _mfaPendingUser = null; }
 let refreshing: Promise<void> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
-
   try {
+    const body = _rt ? JSON.stringify({ refreshToken: _rt }) : undefined;
     const res = await fetch(`${BASE}/auth/token/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // refresh token sent automatically via HttpOnly cookie
+      body,
     });
     if (!res.ok) return false;
     const data = await res.json();
-    setTokens(data.accessToken, data.refreshToken);
+    setTokens(data.accessToken, data.refreshToken ?? "");
     return true;
   } catch {
     return false;
@@ -177,7 +177,15 @@ export async function logout() {
 }
 
 export async function logoutAll() {
-  await request("/auth/logout-all", { method: "POST" }).catch(() => {});
+  const body = _rt ? JSON.stringify({ refreshToken: _rt }) : undefined;
+  await fetch("/api/v1/auth/logout-all", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(_at ? { Authorization: `Bearer ${_at}` } : {}),
+    },
+    body,
+  }).catch(() => {});
   clearTokens();
 }
 
